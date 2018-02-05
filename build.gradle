@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '2.0.2'
+}
+
+configurations.all {
+    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    jcenter()
+    maven {
+        name 'spigot-repo'
+        url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+    }
+
+    maven {
+
+        name 'sonatype'
+        url 'https://oss.sonatype.org/content/groups/public'
+    }
+
+    maven {
+        name 'NyaaCore'
+        url 'https://raw.githubusercontent.com/NyaaCat/NyaaCore/maven-repo-dev'
+    }
+}
+
+dependencies {
+    compile 'biz.paluch.redis:lettuce:5.0.0.Beta1'
+    compile 'org.spigotmc:spigot-api:1.12-R0.1-SNAPSHOT'
+    compile('cat.nyaa:nyaacore:4.2-SNAPSHOT') {
+        transitive = false
+    }
+    testCompile 'com.github.kstyrc:embedded-redis:0.6'
+}
+
+shadowJar {
+    dependencies {
+        include(dependency {
+            it.moduleGroup.startsWith('io') ||
+            it.moduleGroup == 'biz.paluch.redis' ||
+            it.moduleGroup == 'org.reactivestreams' ||
+            it.moduleGroup == 'commons-io'
+        })
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+}

@@ -1,0 +1,5 @@
+name: RedisProvider
+version: 1.0
+main: cat.nyaa.nyaacore.database.redis.Main
+depend: [NyaaCore]
+authors: [Librazy]
