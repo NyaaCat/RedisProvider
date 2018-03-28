@@ -1,10 +1,12 @@
-package cat.nyaa.nyaacore.database.redis;
+package cat.nyaa.nyaacore.database.provider;
 
 import cat.nyaa.nyaacore.database.Database;
 import cat.nyaa.nyaacore.database.DatabaseProvider;
 import cat.nyaa.nyaacore.database.KeyValueDB;
-import com.lambdaworks.redis.RedisClient;
-import com.lambdaworks.redis.RedisURI;
+import com.google.common.collect.Lists;
+import com.google.common.primitives.Bytes;
+import com.google.common.util.concurrent.Futures;
+import com.lambdaworks.redis.*;
 import com.lambdaworks.redis.api.StatefulRedisConnection;
 import com.lambdaworks.redis.api.async.RedisAsyncCommands;
 import com.lambdaworks.redis.api.sync.RedisCommands;
@@ -14,44 +16,51 @@ import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.Validate;
 import org.bukkit.plugin.Plugin;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.logging.Level;
+import java.util.stream.Stream;
 
 @SuppressWarnings("unchecked")
 public class LettuceRedisProvider implements DatabaseProvider {
 
     @Override
     public KeyValueDB get(Plugin plugin, Map<String, Object> map) {
-        Object url = map.get("url");
+        String url = (String) map.get("url");
         RedisURI uri;
         if (url != null) {
-            uri = RedisURI.create((String) map.get("url"));
+            uri = RedisURI.create(url);
         } else {
             uri = RedisURI.builder()
-                          .withHost((String) map.get("host"))
-                          .withPort((int) map.get("port"))
-                          .withPassword((String) map.get("password"))
-                          .withDatabase((int) map.get("database"))
+                          .withHost((String) Objects.requireNonNull(map.get("host"), "'host' is required in redis provider"))
+                          .withPort((int) Objects.requireNonNull(map.get("port"), "'port' is required in redis provider"))
+                          .withPassword((String) Objects.requireNonNull(map.get("password"), "'password' is required in redis provider"))
+                          .withDatabase((int) Objects.requireNonNull(map.get("database"), "'password' is required in redis provider"))
                           .build();
         }
+        String prefix = (String) map.get("prefix");
         try {
             Class<?> k = map.get("key") == null ? String.class : Class.forName((String) map.get("key"));
             Class<?> v = map.get("value") == null ? String.class : Class.forName((String) map.get("value"));
             RedisCodec codec;
-            if (k.equals(String.class) && v.equals(String.class)) {
+            if (k.equals(String.class) && v.equals(String.class) && prefix == null) {
                 codec = new StringCodec();
             } else {
                 Function<Object, ByteBuffer> ek = getEncoder(k);
                 Function<ByteBuffer, Object> dk = getDecoder(k);
                 Function<Object, ByteBuffer> ev = getEncoder(v);
                 Function<ByteBuffer, Object> dv = getDecoder(v);
-                codec = new Codec(dk, dv, ek, ev);
+                codec = new Codec(dk, dv, ek, ev, prefix);
             }
-            return new LettuceRedisDB(codec, plugin, uri);
+            return new LettuceRedisDB(codec, plugin, uri, prefix);
         } catch (ClassNotFoundException e) {
             throw new IllegalArgumentException(e);
         }
@@ -65,13 +74,13 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 return new UUID(high, low);
             };*/
             return (bb) -> Enum.valueOf((Class<? extends Enum>) k, StandardCharsets.UTF_8.decode(bb).toString());
-        } else if(k == UUID.class) {
+        } else if (k == UUID.class) {
             return (bb) -> UUID.fromString(StandardCharsets.UTF_8.decode(bb).toString());
-        } else if(k == Long.class) {
+        } else if (k == Long.class) {
             return ByteBuffer::getLong;
-        } else if(k == Integer.class) {
+        } else if (k == Integer.class) {
             return ByteBuffer::getInt;
-        } else if(k == String.class) {
+        } else if (k == String.class) {
             return (bb) -> StandardCharsets.UTF_8.decode(bb).toString();
         } else {
             throw new NotImplementedException();
@@ -81,7 +90,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
     private Function<Object, ByteBuffer> getEncoder(Class<?> k) {
         if (k.isEnum()) {
             return (o) -> StandardCharsets.UTF_8.encode(((Enum) o).name());
-        } else if(k == UUID.class) {
+        } else if (k == UUID.class) {
 /*            return (o) -> {
                 UUID uuid = (UUID) o;
                 ByteBuffer bb = ByteBuffer.wrap(new byte[Long.BYTES * 2]);
@@ -93,28 +102,28 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 UUID uuid = (UUID) o;
                 return StandardCharsets.UTF_8.encode(uuid.toString());
             };
-        } else if(k == Long.class){
+        } else if (k == Long.class) {
             return (o) -> {
                 Long n = (Long) o;
-                ByteBuffer bb = ByteBuffer.wrap(new byte[Long.BYTES]);
-                bb.putLong(n);
+                ByteBuffer bb = ByteBuffer.allocate(Long.BYTES);
+                bb.putLong(n).rewind();
                 return bb;
             };
-        } else if(k == Integer.class){
+        } else if (k == Integer.class) {
             return (o) -> {
                 Integer n = (Integer) o;
-                ByteBuffer bb = ByteBuffer.wrap(new byte[Integer.BYTES]);
-                bb.putInt(n);
+                ByteBuffer bb = ByteBuffer.allocate(Integer.BYTES);
+                bb.putInt(n).rewind();
                 return bb;
             };
-        } else if(k == Double.class){
+        } else if (k == Double.class) {
             return (o) -> {
                 Double n = (Double) o;
-                ByteBuffer bb = ByteBuffer.wrap(new byte[Double.BYTES]);
-                bb.putDouble(n);
+                ByteBuffer bb = ByteBuffer.allocate(Double.BYTES);
+                bb.putDouble(n).rewind();
                 return bb;
             };
-        } else if(k == String.class){
+        } else if (k == String.class) {
             return (o) -> {
                 String n = (String) o;
                 return ByteBuffer.wrap(n.getBytes());
@@ -128,15 +137,32 @@ public class LettuceRedisProvider implements DatabaseProvider {
         private final RedisCodec<K, V> codec;
         private final Plugin plugin;
         private final RedisURI uri;
+        private final String prefix;
         private RedisClient client;
         private StatefulRedisConnection<K, V> connection;
         private RedisCommands<K, V> sync = null;
         private RedisAsyncCommands<K, V> async = null;
 
-        LettuceRedisDB(RedisCodec<K, V> codec, Plugin plugin, RedisURI uri) {
+        LettuceRedisDB(RedisCodec<K, V> codec, Plugin plugin, RedisURI uri, String prefix) {
             this.codec = codec;
             this.plugin = plugin;
             this.uri = uri;
+            this.prefix = prefix;
+        }
+
+        @Override
+        public int size() {
+            if (prefix == null) {
+                return sync.dbsize().intValue();
+            }
+            ScanArgs s = new ScanArgs().match(prefix + "*");
+            KeyScanCursor<K> c = sync.scan(s);
+            List<K> keys = new ArrayList<>(c.getKeys());
+            while (!c.isFinished()) {
+                c = sync.scan(c, s);
+                keys.addAll(c.getKeys());
+            }
+            return keys.size();
         }
 
         @Override
@@ -204,7 +230,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             return new Map<K, V>() {
                 @Override
                 public int size() {
-                    return sync.dbsize().intValue();
+                    return LettuceRedisDB.this.size();
                 }
 
                 @Override
@@ -224,19 +250,17 @@ public class LettuceRedisProvider implements DatabaseProvider {
 
                 @Override
                 public V get(Object key) {
-                    return sync.get((K) key);
+                    return LettuceRedisDB.this.get((K) key);
                 }
 
                 @Override
                 public V put(K key, V value) {
-                    return sync.getset(key, value);
+                    return LettuceRedisDB.this.put(key, value);
                 }
 
                 @Override
                 public V remove(Object key) {
-                    V val = sync.get((K) key);
-                    sync.del((K) key);
-                    return val;
+                    return LettuceRedisDB.this.remove((K) key);
                 }
 
                 @Override
@@ -248,7 +272,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
 
                 @Override
                 public void clear() {
-                    sync.flushdb();
+                    LettuceRedisDB.this.clear();
                 }
 
                 @Override
@@ -270,13 +294,44 @@ public class LettuceRedisProvider implements DatabaseProvider {
 
         @Override
         public void clear() {
-            sync.flushdb();
+            if (prefix == null) {
+                sync.flushdb();
+                return;
+            }
+            ScanArgs s = new ScanArgs().match(prefix + "*");
+            KeyScanCursor<K> c = sync.scan(s);
+            List<RedisFuture<Long>> awaits = new ArrayList<>();
+            if(!c.getKeys().isEmpty()){
+                awaits.add(async.del((K[]) c.getKeys().toArray()));
+            }
+            while (!c.isFinished()) {
+                c = sync.scan(c, s);
+                if(!c.getKeys().isEmpty()){
+                    awaits.add(async.del((K[]) c.getKeys().toArray()));
+                }
+            }
+            Validate.isTrue(LettuceFutures.awaitAll(10, TimeUnit.SECONDS, awaits.toArray(new Future<?>[0])));
         }
 
         @Override
         public CompletableFuture<Void> clearAsync() {
-            return async.flushdb().thenAccept(s -> {
-            }).toCompletableFuture();
+            if (prefix == null) {
+                return async.flushdb().thenAccept(s -> {
+                }).toCompletableFuture();
+            }
+            ScanArgs s = new ScanArgs().match(prefix + "*");
+            KeyScanCursor<K> c = sync.scan(s);
+            List<RedisFuture<Long>> awaits = new ArrayList<>();
+            if(!c.getKeys().isEmpty()){
+                awaits.add(async.del((K[]) c.getKeys().toArray()));
+            }
+            while (!c.isFinished()) {
+                c = sync.scan(c, s);
+                if(!c.getKeys().isEmpty()){
+                    awaits.add(async.del((K[]) c.getKeys().toArray()));
+                }
+            }
+            return CompletableFuture.allOf(awaits.toArray(new CompletableFuture<?>[0]));
         }
 
         @Override
@@ -314,20 +369,35 @@ public class LettuceRedisProvider implements DatabaseProvider {
         private final Function<ByteBuffer, V> dv;
         private final Function<K, ByteBuffer> ek;
         private final Function<V, ByteBuffer> ev;
+        private final byte[] prefixBytes;
 
         private Codec(Function<ByteBuffer, K> dk,
                       Function<ByteBuffer, V> dv,
                       Function<K, ByteBuffer> ek,
-                      Function<V, ByteBuffer> ev) {
+                      Function<V, ByteBuffer> ev,
+                      String prefix) {
             this.dv = dv;
             this.dk = dk;
             this.ev = ev;
             this.ek = ek;
+            if (prefix == null) {
+                prefixBytes = null;
+            } else {
+                prefixBytes = prefix.getBytes(StandardCharsets.UTF_8);
+            }
         }
 
         @Override
         public K decodeKey(ByteBuffer bytes) {
-            return dk.apply(bytes);
+            bytes.position(prefixBytes.length);
+            try {
+                return dk.apply(bytes);
+            } catch (BufferUnderflowException e){
+                bytes.rewind();
+                byte[] contents = new byte[bytes.remaining()];
+                bytes.put(contents);
+                throw new RuntimeException("key with prefix " + new String(prefixBytes) + "is not decodeable: " + Arrays.toString(contents), e);
+            }
         }
 
         @Override
@@ -337,7 +407,11 @@ public class LettuceRedisProvider implements DatabaseProvider {
 
         @Override
         public ByteBuffer encodeKey(K key) {
-            return ek.apply(key);
+            ByteBuffer o = ek.apply(key);
+            if (prefixBytes == null) {
+                return o;
+            }
+            return ByteBuffer.wrap(Bytes.concat(prefixBytes, o.array()));
         }
 
         @Override

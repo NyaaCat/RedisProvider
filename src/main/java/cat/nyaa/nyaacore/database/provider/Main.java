@@ -1,4 +1,4 @@
-package cat.nyaa.nyaacore.database.redis;
+package cat.nyaa.nyaacore.database.provider;
 
 import cat.nyaa.nyaacore.database.DatabaseUtils;
 import org.bukkit.Bukkit;
