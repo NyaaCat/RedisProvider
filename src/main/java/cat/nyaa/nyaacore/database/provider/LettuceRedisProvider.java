@@ -361,6 +361,11 @@ public class LettuceRedisProvider implements DatabaseProvider {
             client.shutdown();
             client = null;
         }
+
+        @Override
+        public boolean containsKey(K key){
+            return sync.exists((K) key) != 0;
+        }
     }
 
     public class Codec<K, V> implements RedisCodec<K, V> {

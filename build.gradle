@@ -18,14 +18,13 @@ repositories {
     }
 
     maven {
-
         name 'sonatype'
         url 'https://oss.sonatype.org/content/groups/public'
     }
 
     maven {
         name 'NyaaCore'
-        url 'https://raw.githubusercontent.com/NyaaCat/NyaaCore/maven-repo-dev'
+        url 'https://raw.githubusercontent.com/NyaaCat/NyaaCore/maven-repo'
     }
 }
 
