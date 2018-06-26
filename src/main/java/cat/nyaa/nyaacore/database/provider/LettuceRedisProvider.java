@@ -226,6 +226,11 @@ public class LettuceRedisProvider implements DatabaseProvider {
         }
 
         @Override
+        public boolean containsKey(K key){
+            return sync.exists((K) key) != 0;
+        }
+
+        @Override
         public Map<K, V> asMap() {
             return new Map<K, V>() {
                 @Override
@@ -363,8 +368,10 @@ public class LettuceRedisProvider implements DatabaseProvider {
         }
 
         @Override
-        public boolean containsKey(K key){
-            return sync.exists((K) key) != 0;
+        protected void finalize(){
+            if(connection != null){
+                close();
+            }
         }
     }
 

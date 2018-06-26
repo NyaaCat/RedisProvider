@@ -6,7 +6,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.logging.Level;
 
-public class Main extends JavaPlugin {
+public class RedisProvider extends JavaPlugin {
     @Override
     public void onEnable() {
         if(!DatabaseUtils.hasProvider("redis")){
