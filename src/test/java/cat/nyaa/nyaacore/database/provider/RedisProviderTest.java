@@ -230,14 +230,14 @@ public class RedisProviderTest {
         Map<String, Object> conf = new HashMap<>();
         conf.put("host", "localhost");
         conf.put("port", port);
-        conf.put("prefix", "nyaacat:redis:test:");
+        conf.put("prefix", "nyaacat1");
         conf.put("database", 0);
         conf.put("password", "");
         @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<String, String> db = (LettuceRedisProvider.LettuceRedisDB<String, String>) DatabaseUtils.get("redis", null, conf, KeyValueDB.class);
         Map<String, Object> conf2 = new HashMap<>();
         conf2.put("url", "redis://localhost:" + port + "/");
         conf2.put("key", Integer.class.getName());
-        conf2.put("prefix", "nyaacat:redis:test2:");
+        conf2.put("prefix", "nyaacat2");
         @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<Integer, String> db2 = (LettuceRedisProvider.LettuceRedisDB<Integer, String>) DatabaseUtils.get("redis", null, conf2, KeyValueDB.class);
         db.clear();
         db2.clear();

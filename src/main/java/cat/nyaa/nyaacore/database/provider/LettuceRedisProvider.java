@@ -299,7 +299,8 @@ public class LettuceRedisProvider implements DatabaseProvider {
             ScanIterator<K> scan = ScanIterator.scan(sync, ScanArgs.Builder.matches(prefix + "*"));
             K[] k = scan.stream().collect(Collectors.toList()).stream().toArray(i -> (K[]) Array.newInstance(klass, i));
             if (k.length == 0) return;
-            if (k.length != sync.del(k)) throw new IllegalArgumentException();
+            Long del = sync.del(k);
+            if (k.length != del) throw new IllegalArgumentException("expected: " + k.length + " deleted: " + del);
         }
 
         public CompletableFuture<Boolean> clearAsync() {
