@@ -227,7 +227,7 @@ public class RedisProviderTest {
         db.close();
     }
 
-    // @Test
+    @Test
     public void canGetSizeAndClearWithPrefix() throws InterruptedException, ExecutionException {
         Map<String, Object> conf = new HashMap<>();
         conf.put("host", "localhost");

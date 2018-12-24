@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '2.0.2'
+    id 'com.github.johnrengelman.shadow' version '4.0.2'
 }
 
 // Version strings used for CI
@@ -53,10 +53,9 @@ test {
 shadowJar {
     dependencies {
         include(dependency {
-            it.moduleGroup.startsWith('io') ||
-            it.moduleGroup == 'biz.paluch.redis' ||
-            it.moduleGroup == 'org.reactivestreams' ||
-            it.moduleGroup == 'commons-io'
+            it.moduleGroup == 'io.lettuce' ||
+                    it.moduleGroup == 'io.projectreactor' ||
+                    it.moduleGroup == 'org.reactivestreams'
         })
     }
 }
