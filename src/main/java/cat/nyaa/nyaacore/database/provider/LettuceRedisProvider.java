@@ -1,25 +1,19 @@
 package cat.nyaa.nyaacore.database.provider;
 
-import cat.nyaa.nyaacore.database.Database;
-import cat.nyaa.nyaacore.database.DatabaseProvider;
-import cat.nyaa.nyaacore.database.KeyValueDB;
-import com.google.common.collect.Lists;
+import cat.nyaa.nyaacore.database.keyvalue.KeyValueDB;
 import com.google.common.primitives.Bytes;
-import com.google.common.util.concurrent.Futures;
-import com.lambdaworks.redis.*;
-import com.lambdaworks.redis.api.StatefulRedisConnection;
-import com.lambdaworks.redis.api.async.RedisAsyncCommands;
-import com.lambdaworks.redis.api.sync.RedisCommands;
-import com.lambdaworks.redis.codec.RedisCodec;
-import com.lambdaworks.redis.codec.StringCodec;
+import io.lettuce.core.*;
+import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.async.RedisAsyncCommands;
+import io.lettuce.core.api.sync.RedisCommands;
+import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.codec.StringCodec;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.Validate;
 import org.bukkit.plugin.Plugin;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -27,13 +21,15 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.logging.Level;
-import java.util.stream.Stream;
 
 @SuppressWarnings("unchecked")
 public class LettuceRedisProvider implements DatabaseProvider {
 
     @Override
-    public KeyValueDB get(Plugin plugin, Map<String, Object> map) {
+    public <T> T get(Plugin plugin, Map<String, Object> map, Class<T> databaseType) {
+        if (!databaseType.isAssignableFrom(LettuceRedisDB.class)) {
+            throw new IllegalArgumentException();
+        }
         String url = (String) map.get("url");
         RedisURI uri;
         if (url != null) {
@@ -60,7 +56,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 Function<ByteBuffer, Object> dv = getDecoder(v);
                 codec = new Codec(dk, dv, ek, ev, prefix);
             }
-            return new LettuceRedisDB(codec, plugin, uri, prefix);
+            return (T) new LettuceRedisDB(codec, plugin, uri, prefix).connect();
         } catch (ClassNotFoundException e) {
             throw new IllegalArgumentException(e);
         }
@@ -126,7 +122,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
         } else if (k == String.class) {
             return (o) -> {
                 String n = (String) o;
-                return ByteBuffer.wrap(n.getBytes());
+                return ByteBuffer.wrap(n.getBytes(StandardCharsets.UTF_8));
             };
         } else {
             throw new NotImplementedException();
@@ -170,7 +166,6 @@ public class LettuceRedisProvider implements DatabaseProvider {
             return sync.get(key);
         }
 
-        @Override
         public CompletableFuture<V> getAsync(K key) {
             return async.get(key).toCompletableFuture();
         }
@@ -185,7 +180,6 @@ public class LettuceRedisProvider implements DatabaseProvider {
             return result;
         }
 
-        @Override
         public CompletableFuture<V> getAsync(K key, Function<? super K, ? extends V> mappingFunction) {
             return async.get(key).thenApply(s -> s == null ? mappingFunction.apply(key) : s).toCompletableFuture();
         }
@@ -195,7 +189,6 @@ public class LettuceRedisProvider implements DatabaseProvider {
             return sync.getset(k, v);
         }
 
-        @Override
         public CompletableFuture<V> putAsync(K key, V value) {
             return async.getset(key, value).toCompletableFuture();
         }
@@ -207,7 +200,6 @@ public class LettuceRedisProvider implements DatabaseProvider {
             return val;
         }
 
-        @Override
         public CompletableFuture<V> removeAsync(K key) {
             return async.get(key).thenApply((s) -> {
                 async.del(key);
@@ -220,13 +212,12 @@ public class LettuceRedisProvider implements DatabaseProvider {
             return Collections.singleton(sync.get(key));
         }
 
-        @Override
         public CompletableFuture<Collection<V>> getAllAsync(K key) {
             return async.get(key).thenApply(s -> (Collection<V>) Collections.singleton(s)).toCompletableFuture();
         }
 
         @Override
-        public boolean containsKey(K key){
+        public boolean containsKey(K key) {
             return sync.exists((K) key) != 0;
         }
 
@@ -306,42 +297,39 @@ public class LettuceRedisProvider implements DatabaseProvider {
             ScanArgs s = new ScanArgs().match(prefix + "*");
             KeyScanCursor<K> c = sync.scan(s);
             List<RedisFuture<Long>> awaits = new ArrayList<>();
-            if(!c.getKeys().isEmpty()){
+            if (!c.getKeys().isEmpty()) {
                 awaits.add(async.del((K[]) c.getKeys().toArray()));
             }
             while (!c.isFinished()) {
                 c = sync.scan(c, s);
-                if(!c.getKeys().isEmpty()){
+                if (!c.getKeys().isEmpty()) {
                     awaits.add(async.del((K[]) c.getKeys().toArray()));
                 }
             }
             Validate.isTrue(LettuceFutures.awaitAll(10, TimeUnit.SECONDS, awaits.toArray(new Future<?>[0])));
         }
 
-        @Override
-        public CompletableFuture<Void> clearAsync() {
+        public CompletableFuture<Boolean> clearAsync() {
             if (prefix == null) {
-                return async.flushdb().thenAccept(s -> {
-                }).toCompletableFuture();
+                return async.flushdb().thenApply(s -> true).toCompletableFuture();
             }
             ScanArgs s = new ScanArgs().match(prefix + "*");
             KeyScanCursor<K> c = sync.scan(s);
             List<RedisFuture<Long>> awaits = new ArrayList<>();
-            if(!c.getKeys().isEmpty()){
+            if (!c.getKeys().isEmpty()) {
                 awaits.add(async.del((K[]) c.getKeys().toArray()));
             }
             while (!c.isFinished()) {
                 c = sync.scan(c, s);
-                if(!c.getKeys().isEmpty()){
+                if (!c.getKeys().isEmpty()) {
                     awaits.add(async.del((K[]) c.getKeys().toArray()));
                 }
             }
-            return CompletableFuture.allOf(awaits.toArray(new CompletableFuture<?>[0]));
+            return CompletableFuture.supplyAsync(() -> LettuceFutures.awaitAll(10, TimeUnit.SECONDS, awaits.toArray(new Future<?>[0])));
         }
 
-        @Override
         @SuppressWarnings("unchecked")
-        public <T extends Database> T connect() {
+        public <T extends KeyValueDB> T connect() {
             if (plugin != null) {
                 plugin.getLogger().log(Level.INFO, "Connecting redis server " + uri.toString());
             }
@@ -368,8 +356,8 @@ public class LettuceRedisProvider implements DatabaseProvider {
         }
 
         @Override
-        protected void finalize(){
-            if(connection != null){
+        protected void finalize() {
+            if (connection != null) {
                 close();
             }
         }
@@ -404,7 +392,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             bytes.position(prefixBytes.length);
             try {
                 return dk.apply(bytes);
-            } catch (BufferUnderflowException e){
+            } catch (BufferUnderflowException e) {
                 bytes.rewind();
                 byte[] contents = new byte[bytes.remaining()];
                 bytes.put(contents);
