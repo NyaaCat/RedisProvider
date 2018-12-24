@@ -298,7 +298,9 @@ public class LettuceRedisProvider implements DatabaseProvider {
             }
             ScanIterator<K> scan = ScanIterator.scan(sync, ScanArgs.Builder.matches(prefix + "*"));
             while (scan.hasNext()) {
-                sync.del(scan.next());
+                K next = scan.next();
+                System.err.println(next);
+                System.err.println(sync.del(next));
             }
         }
 
