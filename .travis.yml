@@ -1,5 +1,5 @@
 language: java
-jdk: oraclejdk8
+jdk: openjdk8
 install: true
 dist: xenial
 addons:
@@ -9,6 +9,8 @@ addons:
     packages:
       - redis-tools
       - redis-server
+services:
+  - redis-server
 before_script:
   - export MAJOR_VERSION=`sed -n 's/^ext\.majorVersion = \(.*\)$/\1/p' build.gradle`
   - export MINOR_VERSION=`sed -n 's/^ext\.minorVersion = \(.*\)$/\1/p' build.gradle`
