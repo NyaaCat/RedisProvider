@@ -19,7 +19,7 @@ before_script:
   - git config --global user.email "builds@travis-ci.com"
   - git config --global user.name "Travis CI"
   - 'sed -i "s/^\(version: \).*\$/\1$VERSION_STRING/g" src/main/resources/plugin.yml'
-script: ./gradlew build --info
+script: ./gradlew build --info --stacktrace
 after_success:
   - if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then exit 0; fi
   - if [ "$TRAVIS_BRANCH" != "$MC_VERSION" ]; then exit 0; fi
