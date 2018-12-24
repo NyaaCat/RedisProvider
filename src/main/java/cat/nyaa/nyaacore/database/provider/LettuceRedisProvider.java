@@ -300,6 +300,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             while (scan.hasNext()) {
                 K next = scan.next();
                 System.err.println("key:" + next);
+                System.err.println("ext:" + sync.exists(next));
                 System.err.println("del:" + sync.del(next));
             }
         }
@@ -347,6 +348,10 @@ public class LettuceRedisProvider implements DatabaseProvider {
             if (connection != null) {
                 close();
             }
+        }
+
+        public void flushdb() {
+            sync.flushdb();
         }
     }
 

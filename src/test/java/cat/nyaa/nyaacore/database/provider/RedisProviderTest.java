@@ -107,7 +107,7 @@ public class RedisProviderTest {
         conf.put("url", "redis://localhost:" + port + "/");
         conf.put("prefix", "nyaacat:redis:test4:");
         @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<String, String> db = (LettuceRedisProvider.LettuceRedisDB<String, String>) DatabaseUtils.get("redis", null, conf, KeyValueDB.class);
-        db.clear();
+        db.flushdb();
         db.put("k", "v");
         db.close();
         TimeUnit.SECONDS.sleep(2);
@@ -187,7 +187,7 @@ public class RedisProviderTest {
         conf.put("key", Long.class.getName());
         conf.put("prefix", "nyaacat:redis:test3:");
         @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<Long, String> db = (LettuceRedisProvider.LettuceRedisDB<Long, String>) DatabaseUtils.get("redis", null, conf, KeyValueDB.class);
-        db.clear();
+        db.flushdb();
         db.put(1L, "Str");
         Assert.assertEquals("Str", db.get(1L));
     }
@@ -239,8 +239,8 @@ public class RedisProviderTest {
         conf2.put("key", Integer.class.getName());
         conf2.put("prefix", "nyaacat2");
         @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<Integer, String> db2 = (LettuceRedisProvider.LettuceRedisDB<Integer, String>) DatabaseUtils.get("redis", null, conf2, KeyValueDB.class);
-        db.clear();
-        db2.clear();
+        db.flushdb();
+        db2.flushdb();
 
         db.put("k", "v");
         Map<String, String> dbMap = db.asMap();
