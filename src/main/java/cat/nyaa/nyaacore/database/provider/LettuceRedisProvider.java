@@ -153,7 +153,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 return sync.dbsize().intValue();
             }
             if (!klass.equals(String.class)) throw new UnsupportedOperationException();
-            return sync.keys((K) (prefix + "*")).size();
+            return sync.keys((K) "*").size();
         }
 
         @Override
@@ -290,7 +290,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 return;
             }
             if (!klass.equals(String.class)) throw new UnsupportedOperationException();
-            List<K> keys = sync.keys((K) (prefix + "*"));
+            List<K> keys = sync.keys((K) "*");
             sync.del((K[]) keys.toArray());
         }
 
@@ -299,7 +299,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 return async.flushdb().thenApply(s -> -1L).toCompletableFuture();
             }
             if (!klass.equals(String.class)) throw new UnsupportedOperationException();
-            return async.keys((K) (prefix + "*")).thenComposeAsync(keys -> async.del((K[]) keys.toArray())).toCompletableFuture();
+            return async.keys((K) "*").thenComposeAsync(keys -> async.del((K[]) keys.toArray())).toCompletableFuture();
         }
 
         @SuppressWarnings("unchecked")

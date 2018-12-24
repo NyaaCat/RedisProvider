@@ -236,16 +236,15 @@ public class RedisProviderTest {
         @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<String, String> db = (LettuceRedisProvider.LettuceRedisDB<String, String>) DatabaseUtils.get("redis", null, conf, KeyValueDB.class);
         Map<String, Object> conf2 = new HashMap<>();
         conf2.put("url", "redis://localhost:" + port + "/");
-        conf2.put("key", Integer.class.getName());
         conf2.put("prefix", "nyaacat2");
-        @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<Integer, String> db2 = (LettuceRedisProvider.LettuceRedisDB<Integer, String>) DatabaseUtils.get("redis", null, conf2, KeyValueDB.class);
+        @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<String, String> db2 = (LettuceRedisProvider.LettuceRedisDB<String, String>) DatabaseUtils.get("redis", null, conf2, KeyValueDB.class);
         db.flushdb();
         db2.flushdb();
 
         db.put("k", "v");
         Map<String, String> dbMap = db.asMap();
         Assert.assertEquals(1, dbMap.size());
-        db2.put(1, "2s");
+        db2.put("1", "2s");
         db.put("k2", "v2");
         Assert.assertEquals(2, db.size());
         Assert.assertEquals(1, db2.size());
