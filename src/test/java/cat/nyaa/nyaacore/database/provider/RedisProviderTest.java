@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -91,12 +92,12 @@ public class RedisProviderTest {
         conf.put("url", "redis://localhost:" + port + "/");
         @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<String, String> db = (LettuceRedisProvider.LettuceRedisDB<String, String>) DatabaseUtils.get("redis", null, conf, KeyValueDB.class);
         db.clear();
-        db.put("k", "v");
+        db.put("k", "数据");
         db.close();
         TimeUnit.SECONDS.sleep(2);
         //noinspection unchecked
         db = (LettuceRedisProvider.LettuceRedisDB<String, String>) DatabaseUtils.get("redis", null, conf, KeyValueDB.class);
-        Assert.assertEquals(db.get("k"), "v");
+        Assert.assertEquals(db.get("k"), "数据");
         db.close();
     }
 
@@ -162,6 +163,21 @@ public class RedisProviderTest {
         db.clear();
         db.put(1, "中文");
         Assert.assertEquals("中文", db.get(1));
+    }
+
+    @Test
+    public void canRwUuidUtf8String() {
+        Map<String, Object> conf = new HashMap<>();
+        conf.put("url", "redis://localhost:" + port + "/");
+        conf.put("key", UUID.class.getName());
+        @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<UUID, String> db = (LettuceRedisProvider.LettuceRedisDB<UUID, String>) DatabaseUtils.get("redis", null, conf, KeyValueDB.class);
+        db.clear();
+        UUID uuid = UUID.randomUUID();
+        UUID uuid2 = UUID.randomUUID();
+        db.put(uuid, "{\"test\": \"中文😈\"}");
+        db.put(uuid2, "1545661188333:{\"extra\":[{\"text\":Happy クリスマス\"}]}");
+        Assert.assertEquals("{\"test\": \"中文😈\"}", db.get(uuid));
+        Assert.assertEquals("1545661188333:{\"extra\":[{\"text\":Happy クリスマス\"}]}", db.get(uuid2));
     }
 
     @Test

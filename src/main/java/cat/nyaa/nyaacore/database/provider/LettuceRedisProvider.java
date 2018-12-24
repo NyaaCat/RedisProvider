@@ -122,7 +122,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
         } else if (k == String.class) {
             return (o) -> {
                 String n = (String) o;
-                return ByteBuffer.wrap(n.getBytes(StandardCharsets.UTF_8));
+                return StandardCharsets.UTF_8.encode(n);
             };
         } else {
             throw new NotImplementedException();
