@@ -27,7 +27,7 @@ public class RedisProviderTest {
         ServerSocket s = new ServerSocket(0);
         port = s.getLocalPort();
         s.close();
-        redisServer = RedisServer.builder().port(port).setting("maxheap 128M").setting("bind 127.0.0.1").build();
+        redisServer = RedisServer.builder().port(port).setting("maxmemory 128M").setting("bind 127.0.0.1").build();
         redisServer.start();
         port = redisServer.ports().stream().findFirst().orElseThrow(IllegalStateException::new);
         DatabaseUtils.registerProvider("redis", new LettuceRedisProvider());
