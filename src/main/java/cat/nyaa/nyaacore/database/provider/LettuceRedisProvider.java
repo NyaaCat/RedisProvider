@@ -296,13 +296,16 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 sync.flushdb();
                 return;
             }
-            ScanIterator<K> scan = ScanIterator.scan(sync, ScanArgs.Builder.matches(prefix + "*"));
-            while (scan.hasNext()) {
-                K next = scan.next();
-                System.err.println("key:" + next);
-                System.err.println("ext:" + sync.exists(next));
-                System.err.println("del:" + sync.del(next));
-            }
+            KeyScanCursor<K> scan = sync.scan(ScanArgs.Builder.matches(prefix + "*"));
+            do {
+                List<K> keys = scan.getKeys();
+                for (K next : keys){
+                    System.err.println("key:" + next);
+                    System.err.println("ext:" + sync.exists(next));
+                    System.err.println("del:" + sync.del(next));
+                }
+                scan = sync.scan(scan, ScanArgs.Builder.matches(prefix + "*"));
+            } while (!scan.isFinished());
         }
 
         public CompletableFuture<Boolean> clearAsync() {
