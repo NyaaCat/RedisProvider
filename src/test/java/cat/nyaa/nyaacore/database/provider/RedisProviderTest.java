@@ -251,6 +251,7 @@ public class RedisProviderTest {
         Assert.assertEquals(1, db2.size());
         Assert.assertEquals(2, dbMap.size());
         db.clear();
+        Assert.assertNull(db.get("k"));
         Assert.assertEquals(0, db.size());
         db.close();
         Assert.assertEquals(1, db2.size());
