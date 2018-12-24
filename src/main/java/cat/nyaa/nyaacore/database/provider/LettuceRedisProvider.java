@@ -12,15 +12,15 @@ import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.Validate;
 import org.bukkit.plugin.Plugin;
 
+import java.lang.reflect.Array;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("unchecked")
 public class LettuceRedisProvider implements DatabaseProvider {
@@ -56,7 +56,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 Function<ByteBuffer, Object> dv = getDecoder(v);
                 codec = new Codec(dk, dv, ek, ev, prefix);
             }
-            return (T) new LettuceRedisDB(codec, plugin, uri, prefix).connect();
+            return (T) new LettuceRedisDB(codec, plugin, uri, prefix, k).connect();
         } catch (ClassNotFoundException e) {
             throw new IllegalArgumentException(e);
         }
@@ -134,16 +134,18 @@ public class LettuceRedisProvider implements DatabaseProvider {
         private final Plugin plugin;
         private final RedisURI uri;
         private final String prefix;
+        private final Class<K> klass;
         private RedisClient client;
         private StatefulRedisConnection<K, V> connection;
         private RedisCommands<K, V> sync = null;
         private RedisAsyncCommands<K, V> async = null;
 
-        LettuceRedisDB(RedisCodec<K, V> codec, Plugin plugin, RedisURI uri, String prefix) {
+        LettuceRedisDB(RedisCodec<K, V> codec, Plugin plugin, RedisURI uri, String prefix, Class<K> klass) {
             this.codec = codec;
             this.plugin = plugin;
             this.uri = uri;
             this.prefix = prefix;
+            this.klass = klass;
         }
 
         @Override
@@ -263,7 +265,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 public void putAll(Map<? extends K, ? extends V> m) {
                     Validate.isTrue(sync.multi().equals("OK"));
                     m.forEach((key, value) -> sync.set(key, value));
-                    Validate.isTrue(!sync.exec().wasRolledBack());
+                    Validate.isTrue(!sync.exec().wasDiscarded());
                 }
 
                 @Override
@@ -294,36 +296,21 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 sync.flushdb();
                 return;
             }
-            ScanArgs s = new ScanArgs().match(prefix + "*");
-            KeyScanCursor<K> c = sync.scan(s);
-            if (!c.getKeys().isEmpty()) {
-                sync.del((K[]) c.getKeys().toArray());
-            }
-            while (!c.isFinished()) {
-                c = sync.scan(c, s);
-                if (!c.getKeys().isEmpty()) {
-                    sync.del((K[]) c.getKeys().toArray());
-                }
-            }
+            ScanIterator<K> scan = ScanIterator.scan(sync, ScanArgs.Builder.matches(prefix + "*"));
+            K[] k = scan.stream().collect(Collectors.toList()).stream().toArray(i -> (K[]) Array.newInstance(klass, i));
+            if (k.length == 0) return;
+            sync.del(k);
         }
 
         public CompletableFuture<Boolean> clearAsync() {
             if (prefix == null) {
                 return async.flushdb().thenApply(s -> true).toCompletableFuture();
             }
-            ScanArgs s = new ScanArgs().match(prefix + "*");
-            KeyScanCursor<K> c = sync.scan(s);
-            List<RedisFuture<Long>> awaits = new ArrayList<>();
-            if (!c.getKeys().isEmpty()) {
-                awaits.add(async.del((K[]) c.getKeys().toArray()));
-            }
-            while (!c.isFinished()) {
-                c = sync.scan(c, s);
-                if (!c.getKeys().isEmpty()) {
-                    awaits.add(async.del((K[]) c.getKeys().toArray()));
-                }
-            }
-            return CompletableFuture.supplyAsync(() -> LettuceFutures.awaitAll(10, TimeUnit.SECONDS, awaits.toArray(new Future<?>[0])));
+            ScanIterator<K> scan = ScanIterator.scan(sync, ScanArgs.Builder.matches(prefix + "*"));
+            K[] k = scan.stream().collect(Collectors.toList()).stream().toArray(i -> (K[]) Array.newInstance(klass, i));
+            int length = k.length;
+            if (length == 0) return CompletableFuture.completedFuture(true);
+            return async.del(k).thenApply(r -> r == length).toCompletableFuture();
         }
 
         @SuppressWarnings("unchecked")
