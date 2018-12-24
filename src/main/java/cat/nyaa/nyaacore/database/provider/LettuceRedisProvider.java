@@ -2,7 +2,8 @@ package cat.nyaa.nyaacore.database.provider;
 
 import cat.nyaa.nyaacore.database.keyvalue.KeyValueDB;
 import com.google.common.primitives.Bytes;
-import io.lettuce.core.*;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.api.sync.RedisCommands;
@@ -12,7 +13,6 @@ import org.apache.commons.lang.NotImplementedException;
 import org.apache.commons.lang.Validate;
 import org.bukkit.plugin.Plugin;
 
-import java.lang.reflect.Array;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +20,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 @SuppressWarnings("unchecked")
 public class LettuceRedisProvider implements DatabaseProvider {
@@ -153,14 +152,8 @@ public class LettuceRedisProvider implements DatabaseProvider {
             if (prefix == null) {
                 return sync.dbsize().intValue();
             }
-            ScanArgs s = new ScanArgs().match(prefix + "*");
-            KeyScanCursor<K> c = sync.scan(s);
-            List<K> keys = new ArrayList<>(c.getKeys());
-            while (!c.isFinished()) {
-                c = sync.scan(c, s);
-                keys.addAll(c.getKeys());
-            }
-            return keys.size();
+            if (!klass.equals(String.class)) throw new UnsupportedOperationException();
+            return sync.keys((K) (prefix + "*")).size();
         }
 
         @Override
@@ -296,27 +289,17 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 sync.flushdb();
                 return;
             }
-            KeyScanCursor<K> scan = sync.scan(ScanArgs.Builder.matches(prefix + "*"));
-            do {
-                List<K> keys = scan.getKeys();
-                for (K next : keys){
-                    System.err.println("key:" + next);
-                    System.err.println("ext:" + sync.exists(next));
-                    System.err.println("del:" + sync.del(next));
-                }
-                scan = sync.scan(scan, ScanArgs.Builder.matches(prefix + "*"));
-            } while (!scan.isFinished());
+            if (!klass.equals(String.class)) throw new UnsupportedOperationException();
+            List<K> keys = sync.keys((K) (prefix + "*"));
+            sync.del((K[]) keys.toArray());
         }
 
-        public CompletableFuture<Boolean> clearAsync() {
+        public CompletableFuture<Long> clearAsync() {
             if (prefix == null) {
-                return async.flushdb().thenApply(s -> true).toCompletableFuture();
+                return async.flushdb().thenApply(s -> -1L).toCompletableFuture();
             }
-            ScanIterator<K> scan = ScanIterator.scan(sync, ScanArgs.Builder.matches(prefix + "*"));
-            K[] k = scan.stream().collect(Collectors.toList()).stream().toArray(i -> (K[]) Array.newInstance(klass, i));
-            int length = k.length;
-            if (length == 0) return CompletableFuture.completedFuture(true);
-            return async.del(k).thenApply(r -> r == length).toCompletableFuture();
+            if (!klass.equals(String.class)) throw new UnsupportedOperationException();
+            return async.keys((K) (prefix + "*")).thenComposeAsync(keys -> async.del((K[]) keys.toArray())).toCompletableFuture();
         }
 
         @SuppressWarnings("unchecked")
