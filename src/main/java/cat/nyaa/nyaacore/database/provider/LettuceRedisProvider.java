@@ -20,6 +20,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @SuppressWarnings("unchecked")
 public class LettuceRedisProvider implements DatabaseProvider {
@@ -311,6 +312,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             connection = client.connect(codec);
             sync = connection.sync();
             async = connection.async();
+            Logger.getLogger("redis").info(sync.info("Server"));
             return (T) this;
         }
 
