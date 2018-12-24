@@ -296,17 +296,15 @@ public class LettuceRedisProvider implements DatabaseProvider {
             }
             ScanArgs s = new ScanArgs().match(prefix + "*");
             KeyScanCursor<K> c = sync.scan(s);
-            List<RedisFuture<Long>> awaits = new ArrayList<>();
             if (!c.getKeys().isEmpty()) {
-                awaits.add(async.del((K[]) c.getKeys().toArray()));
+                sync.del((K[]) c.getKeys().toArray());
             }
             while (!c.isFinished()) {
                 c = sync.scan(c, s);
                 if (!c.getKeys().isEmpty()) {
-                    awaits.add(async.del((K[]) c.getKeys().toArray()));
+                    sync.del((K[]) c.getKeys().toArray());
                 }
             }
-            Validate.isTrue(LettuceFutures.awaitAll(10, TimeUnit.SECONDS, awaits.toArray(new Future<?>[0])));
         }
 
         public CompletableFuture<Boolean> clearAsync() {
