@@ -2,6 +2,8 @@ package cat.nyaa.nyaacore.database.provider;
 
 import cat.nyaa.nyaacore.database.DatabaseUtils;
 import cat.nyaa.nyaacore.database.keyvalue.KeyValueDB;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.api.StatefulRedisConnection;
 import org.junit.*;
 import org.junit.rules.ErrorCollector;
 import redis.embedded.RedisServer;
@@ -13,6 +15,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static org.hamcrest.CoreMatchers.*;
 
@@ -26,13 +30,25 @@ public class RedisProviderTest {
 
     @BeforeClass
     public static void setup() throws IOException {
-        ServerSocket s = new ServerSocket(0);
-        port = s.getLocalPort();
-        s.close();
-        redisServer = RedisServer.builder().port(port).setting("maxmemory 128M").setting("bind 127.0.0.1").build();
-        redisServer.start();
-        port = redisServer.ports().stream().findFirst().orElseThrow(IllegalStateException::new);
-        DatabaseUtils.registerProvider("redis", new LettuceRedisProvider());
+        LettuceRedisProvider.infoLevel = Level.INFO;
+        LettuceRedisProvider.keysLevel = Level.INFO;
+        RedisClient redisClient = RedisClient.create("redis://localhost:6379/");
+        try (StatefulRedisConnection<String, String> connect = redisClient.connect()){
+            connect.sync().info();
+            port = 6379;
+            Logger.getLogger("test").warning("using external redis");
+        } catch (Exception e) {
+            ServerSocket s = new ServerSocket(0);
+            port = s.getLocalPort();
+            s.close();
+            redisServer = RedisServer.builder().port(port).setting("maxmemory 128M").setting("bind 127.0.0.1").build();
+            redisServer.start();
+            Logger.getLogger("test").warning("using embed redis");
+            port = redisServer.ports().stream().findFirst().orElseThrow(IllegalStateException::new);
+            DatabaseUtils.registerProvider("redis", new LettuceRedisProvider());
+        } finally {
+            redisClient.getResources().shutdown();
+        }
     }
 
     @Test

@@ -25,6 +25,9 @@ import java.util.logging.Logger;
 @SuppressWarnings("unchecked")
 public class LettuceRedisProvider implements DatabaseProvider {
 
+    public static Level keysLevel = Level.FINER;
+    public static Level infoLevel = Level.FINE;
+
     @Override
     public <T> T get(Plugin plugin, Map<String, Object> map, Class<T> databaseType) {
         if (!databaseType.isAssignableFrom(LettuceRedisDB.class)) {
@@ -155,7 +158,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             }
             if (!klass.equals(String.class)) throw new UnsupportedOperationException();
             List<String> keys = (List<String>) sync.keys((K) "*");
-            Logger.getLogger("redisProvider").info("keys: ("+ prefix + ") " + String.join(", ", keys));
+            Logger.getLogger("redisProvider").log(keysLevel, "keys: ("+ prefix + ") " + String.join(", ", keys));
             return keys.size();
         }
 
@@ -294,7 +297,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             }
             if (!klass.equals(String.class)) throw new UnsupportedOperationException();
             List<String> keys = (List<String>) sync.keys((K) "*");
-            Logger.getLogger("redisProvider").info("keys: ("+ prefix + ") " + String.join(", ", keys));
+            Logger.getLogger("redisProvider").log(keysLevel ,"keys: ("+ prefix + ") " + String.join(", ", keys));
             sync.del((K[]) keys.toArray());
         }
 
@@ -315,7 +318,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             connection = client.connect(codec);
             sync = connection.sync();
             async = connection.async();
-            Logger.getLogger("redisProvider").info(sync.info("Server"));
+            Logger.getLogger("redisProvider").log(infoLevel, sync.info("Server"));
             return (T) this;
         }
 
