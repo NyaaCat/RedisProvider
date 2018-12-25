@@ -45,8 +45,8 @@ public class RedisProviderTest {
             redisServer.start();
             Logger.getLogger("test").warning("using embed redis");
             port = redisServer.ports().stream().findFirst().orElseThrow(IllegalStateException::new);
-            DatabaseUtils.registerProvider("redis", new LettuceRedisProvider());
         } finally {
+            DatabaseUtils.registerProvider("redis", new LettuceRedisProvider());
             redisClient.getResources().shutdown();
         }
     }
