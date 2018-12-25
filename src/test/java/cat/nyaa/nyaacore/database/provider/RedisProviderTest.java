@@ -2,10 +2,8 @@ package cat.nyaa.nyaacore.database.provider;
 
 import cat.nyaa.nyaacore.database.DatabaseUtils;
 import cat.nyaa.nyaacore.database.keyvalue.KeyValueDB;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
+import org.junit.rules.ErrorCollector;
 import redis.embedded.RedisServer;
 
 import java.io.IOException;
@@ -16,7 +14,11 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.CoreMatchers.*;
+
 public class RedisProviderTest {
+    @Rule
+    public ErrorCollector collector = new ErrorCollector();
 
     private static RedisServer redisServer;
 
@@ -245,20 +247,19 @@ public class RedisProviderTest {
 
         db.put("k", "v");
         Map<String, String> dbMap = db.asMap();
-        Assert.assertEquals(1, dbMap.size());
+        collector.checkThat(dbMap.size(), equalTo(1));
         db2.put("1", "2s");
         db.put("k2", "v2");
-        Assert.assertEquals(2, db.size());
-        Assert.assertEquals(1, db2.size());
-        Assert.assertEquals(2, dbMap.size());
+        collector.checkThat(db.size(), equalTo(2));
+        collector.checkThat(db2.size(), equalTo(1));
+        collector.checkThat(dbMap.size(), equalTo(2));
         db.clear();
-        Thread.sleep(2);
-        Assert.assertNull(db.get("k"));
-        Assert.assertEquals(0, db.size());
+        collector.checkThat(db.get("k"), is(nullValue()));
+        collector.checkThat(db.size(), equalTo(0));
         db.close();
-        Assert.assertEquals(1, db2.size());
+        collector.checkThat(db2.size(), equalTo(1));
         db2.clearAsync().get();
-        Assert.assertEquals(0, db2.size());
+        collector.checkThat(db2.size(), equalTo(0));
         db2.close();
     }
 

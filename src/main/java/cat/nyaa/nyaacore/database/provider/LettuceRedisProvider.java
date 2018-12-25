@@ -154,7 +154,9 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 return sync.dbsize().intValue();
             }
             if (!klass.equals(String.class)) throw new UnsupportedOperationException();
-            return sync.keys((K) "*").size();
+            List<String> keys = (List<String>) sync.keys((K) "*");
+            Logger.getLogger("redisProvider").info("keys: ("+ prefix + ") " + String.join(", ", keys));
+            return keys.size();
         }
 
         @Override
@@ -291,7 +293,8 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 return;
             }
             if (!klass.equals(String.class)) throw new UnsupportedOperationException();
-            List<K> keys = sync.keys((K) "*");
+            List<String> keys = (List<String>) sync.keys((K) "*");
+            Logger.getLogger("redisProvider").info("keys: ("+ prefix + ") " + String.join(", ", keys));
             sync.del((K[]) keys.toArray());
         }
 
@@ -312,7 +315,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             connection = client.connect(codec);
             sync = connection.sync();
             async = connection.async();
-            Logger.getLogger("redis").info(sync.info("Server"));
+            Logger.getLogger("redisProvider").info(sync.info("Server"));
             return (T) this;
         }
 
