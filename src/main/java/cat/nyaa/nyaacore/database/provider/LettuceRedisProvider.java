@@ -57,7 +57,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 Function<ByteBuffer, Object> dk = getDecoder(k);
                 Function<Object, ByteBuffer> ev = getEncoder(v);
                 Function<ByteBuffer, Object> dv = getDecoder(v);
-                codec = new Codec(dk, dv, ek, ev, prefix);
+                codec = new Codec(dk, dv, ek, ev);
             }
             return (T) new LettuceRedisDB(codec, plugin, uri, prefix, k).connect();
         } catch (ClassNotFoundException e) {
@@ -149,6 +149,9 @@ public class LettuceRedisProvider implements DatabaseProvider {
             this.uri = uri;
             this.prefix = prefix;
             this.klass = klass;
+            if (prefix != null) {
+                if (!klass.equals(String.class)) throw new UnsupportedOperationException();
+            }
         }
 
         @Override
@@ -156,23 +159,31 @@ public class LettuceRedisProvider implements DatabaseProvider {
             if (prefix == null) {
                 return sync.dbsize().intValue();
             }
-            if (!klass.equals(String.class)) throw new UnsupportedOperationException();
-            List<String> keys = (List<String>) sync.keys((K) "*");
+            List<String> keys = (List<String>) sync.keys((K) (prefix + "*"));
             Logger.getLogger("redisProvider").log(keysLevel, "keys: (" + prefix + ") " + String.join(", ", keys) + "| fin keys: (" + prefix + ") ");
             return keys.size();
         }
 
         @Override
         public V get(K key) {
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
             return sync.get(key);
         }
 
         public CompletableFuture<V> getAsync(K key) {
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
             return async.get(key).toCompletableFuture();
         }
 
         @Override
         public V get(K key, Function<? super K, ? extends V> loader) {
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
             V result = sync.get(key);
             if (result == null) {
                 result = loader.apply(key);
@@ -182,43 +193,69 @@ public class LettuceRedisProvider implements DatabaseProvider {
         }
 
         public CompletableFuture<V> getAsync(K key, Function<? super K, ? extends V> mappingFunction) {
-            return async.get(key).thenApply(s -> s == null ? mappingFunction.apply(key) : s).toCompletableFuture();
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
+            K finalKey = key;
+            return async.get(key).thenApply(s -> s == null ? mappingFunction.apply(finalKey) : s).toCompletableFuture();
         }
 
         @Override
         public V put(K k, V v) {
+            if (prefix != null) {
+                k = (K) (prefix + k);
+            }
             return sync.getset(k, v);
         }
 
         public CompletableFuture<V> putAsync(K key, V value) {
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
             return async.getset(key, value).toCompletableFuture();
         }
 
         @Override
         public V remove(K key) {
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
             V val = sync.get(key);
             sync.del(key);
             return val;
         }
 
         public CompletableFuture<V> removeAsync(K key) {
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
+            K finalKey = key;
             return async.get(key).thenApply((s) -> {
-                async.del(key);
+                async.del(finalKey);
                 return s;
             }).toCompletableFuture();
         }
 
         @Override
         public Collection<V> getAll(K key) {
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
             return Collections.singleton(sync.get(key));
         }
 
         public CompletableFuture<Collection<V>> getAllAsync(K key) {
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
             return async.get(key).thenApply(s -> (Collection<V>) Collections.singleton(s)).toCompletableFuture();
         }
 
         @Override
         public boolean containsKey(K key) {
+            if (prefix != null) {
+                key = (K) (prefix + key);
+            }
             return sync.exists((K) key) != 0;
         }
 
@@ -237,6 +274,9 @@ public class LettuceRedisProvider implements DatabaseProvider {
 
                 @Override
                 public boolean containsKey(Object key) {
+                    if (prefix != null) {
+                        key = prefix + key;
+                    }
                     return sync.exists((K) key) != 0;
                 }
 
@@ -263,7 +303,13 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 @Override
                 public void putAll(Map<? extends K, ? extends V> m) {
                     Validate.isTrue(sync.multi().equals("OK"));
-                    m.forEach((key, value) -> sync.set(key, value));
+                    m.forEach((key, value) -> {
+                        if (prefix != null) {
+                            sync.set((K) (prefix + key), value);
+                        } else {
+                            sync.set(key, value);
+                        }
+                    });
                     Validate.isTrue(!sync.exec().wasDiscarded());
                 }
 
@@ -295,9 +341,8 @@ public class LettuceRedisProvider implements DatabaseProvider {
                 sync.flushdb();
                 return;
             }
-            if (!klass.equals(String.class)) throw new UnsupportedOperationException();
-            List<String> keys = (List<String>) sync.keys((K) "*");
-            Logger.getLogger("redisProvider").log(keysLevel, "keys: (" + prefix + ") " + String.join(", ", keys) + "| fin keys: (" + prefix + ") ");
+            List<String> keys = (List<String>) sync.keys((K) (prefix + "*"));
+            Logger.getLogger("redisProvider").log(keysLevel, "keys: (" + prefix + ") {" + String.join(", ", keys) + "} (" + prefix + ")");
             sync.del((K[]) keys.toArray());
         }
 
@@ -305,8 +350,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             if (prefix == null) {
                 return async.flushdb().thenApply(s -> -1L).toCompletableFuture();
             }
-            if (!klass.equals(String.class)) throw new UnsupportedOperationException();
-            return async.keys((K) "*").thenComposeAsync(keys -> async.del((K[]) keys.toArray())).toCompletableFuture();
+            return async.keys((K) (prefix + "*")).thenComposeAsync(keys -> async.del((K[]) keys.toArray())).toCompletableFuture();
         }
 
         @SuppressWarnings("unchecked")
@@ -355,35 +399,20 @@ public class LettuceRedisProvider implements DatabaseProvider {
         private final Function<ByteBuffer, V> dv;
         private final Function<K, ByteBuffer> ek;
         private final Function<V, ByteBuffer> ev;
-        private final byte[] prefixBytes;
 
         private Codec(Function<ByteBuffer, K> dk,
                       Function<ByteBuffer, V> dv,
                       Function<K, ByteBuffer> ek,
-                      Function<V, ByteBuffer> ev,
-                      String prefix) {
+                      Function<V, ByteBuffer> ev) {
             this.dv = dv;
             this.dk = dk;
             this.ev = ev;
             this.ek = ek;
-            if (prefix == null) {
-                prefixBytes = null;
-            } else {
-                prefixBytes = prefix.getBytes(StandardCharsets.UTF_8);
-            }
         }
 
         @Override
         public K decodeKey(ByteBuffer bytes) {
-            bytes.position(prefixBytes.length);
-            try {
-                return dk.apply(bytes);
-            } catch (BufferUnderflowException e) {
-                bytes.rewind();
-                byte[] contents = new byte[bytes.remaining()];
-                bytes.put(contents);
-                throw new RuntimeException("key with prefix " + new String(prefixBytes) + "is not decodeable: " + Arrays.toString(contents), e);
-            }
+            return dk.apply(bytes);
         }
 
         @Override
@@ -393,11 +422,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
 
         @Override
         public ByteBuffer encodeKey(K key) {
-            ByteBuffer o = ek.apply(key);
-            if (prefixBytes == null) {
-                return o;
-            }
-            return ByteBuffer.wrap(Bytes.concat(prefixBytes, o.array()));
+            return ek.apply(key);
         }
 
         @Override

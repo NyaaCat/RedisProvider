@@ -199,17 +199,17 @@ public class RedisProviderTest {
     }
 
     @Test
-    public void canRwLongStringWithPrefix() {
+    public void canRwStringLongWithPrefix() {
         Map<String, Object> conf = new HashMap<>();
         conf.put("url", "redis://localhost:" + port + "/");
-        conf.put("key", Long.class.getName());
+        conf.put("value", Long.class.getName());
         conf.put("prefix", "nyaacat:redis:test3:");
-        @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<Long, String> db = (LettuceRedisProvider.LettuceRedisDB<Long, String>) DatabaseUtils.get("redis", null, conf, KeyValueDB.class);
+        @SuppressWarnings("unchecked") LettuceRedisProvider.LettuceRedisDB<String, Long> db = (LettuceRedisProvider.LettuceRedisDB<String, Long>) DatabaseUtils.get("redis", null, conf, KeyValueDB.class);
         db.flushdb();
-        db.put(1L, "Str");
-        Assert.assertEquals("Str", db.get(1L));
-        db.remove(1L);
-        Assert.assertNull(db.get(1L));
+        db.put("Str", 1L);
+        Assert.assertEquals(1L, (long) db.get("Str"));
+        db.remove("Str");
+        Assert.assertNull(db.get("Str"));
     }
 
     @Test
