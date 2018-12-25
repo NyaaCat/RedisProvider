@@ -158,7 +158,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             }
             if (!klass.equals(String.class)) throw new UnsupportedOperationException();
             List<String> keys = (List<String>) sync.keys((K) "*");
-            Logger.getLogger("redisProvider").log(keysLevel, "keys: ("+ prefix + ") " + String.join(", ", keys));
+            Logger.getLogger("redisProvider").log(keysLevel, "keys: (" + prefix + ") " + String.join(", ", keys) + "| fin keys: (" + prefix + ") ");
             return keys.size();
         }
 
@@ -297,7 +297,7 @@ public class LettuceRedisProvider implements DatabaseProvider {
             }
             if (!klass.equals(String.class)) throw new UnsupportedOperationException();
             List<String> keys = (List<String>) sync.keys((K) "*");
-            Logger.getLogger("redisProvider").log(keysLevel ,"keys: ("+ prefix + ") " + String.join(", ", keys));
+            Logger.getLogger("redisProvider").log(keysLevel, "keys: (" + prefix + ") " + String.join(", ", keys) + "| fin keys: (" + prefix + ") ");
             sync.del((K[]) keys.toArray());
         }
 

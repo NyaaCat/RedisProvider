@@ -281,6 +281,8 @@ public class RedisProviderTest {
 
     @AfterClass
     public static void down() {
-        redisServer.stop();
+        if (redisServer != null) {
+            redisServer.stop();
+        }
     }
 }
